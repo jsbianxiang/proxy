@@ -3,6 +3,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 SUB_FILE = ROOT / "subscriptions.local.txt"
 TEMPLATES = ["mihomo.yaml", "mihomo_smart.yaml"]
+SLOTS = 4
 
 
 def read_subscriptions():
@@ -15,9 +16,16 @@ def read_subscriptions():
             continue
         if not line.startswith(("http://", "https://")):
             raise SystemExit(f"订阅链接必须以 http(s) 开头: {line}")
+        if "example.com" in line:
+            raise SystemExit("检测到 example.com 示例链接，请先替换成真实订阅地址")
         links.append(line)
-    if len(links) > 4:
-        raise SystemExit("最多支持 4 条订阅链接")
+    if not links:
+        raise SystemExit("subscriptions.local.txt 中没有有效订阅链接")
+    if len(links) > SLOTS:
+        raise SystemExit(f"最多支持 {SLOTS} 条订阅链接")
+    if len(links) < SLOTS:
+        print(f"警告: 只提供 {len(links)} 条订阅，缺少的槽位将复用最后一条；如需区分地区请手动调整分组")
+        links.extend([links[-1]] * (SLOTS - len(links)))
     return links
 
 
@@ -25,12 +33,8 @@ def main():
     links = read_subscriptions()
     for name in TEMPLATES:
         text = (ROOT / name).read_text(encoding="utf-8")
-        for index in range(1, 5):
-            token = f"订阅链接{index}"
-            if index <= len(links):
-                text = text.replace(token, links[index - 1])
-            else:
-                print(f"警告: {name} 的 {token} 未填写，保留占位符")
+        for index, link in enumerate(links, start=1):
+            text = text.replace(f"订阅链接{index}", link)
         output = ROOT / name.replace(".yaml", ".local.yaml")
         output.write_text(text, encoding="utf-8")
         print(f"已生成 {output.name}")
